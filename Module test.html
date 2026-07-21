@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NSE Trading System — Data Layer Test (Day 1)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0b0e14;
+    color: #e6e9ef;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; color: #7dd3fc; margin-bottom: 4px; }
+  p.subtitle { color: #8b95a7; margin-top: 0; font-size: 13px; }
+  .panel {
+    background: #131722;
+    border: 1px solid #232838;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  input, button {
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #2a3040;
+    background: #1a1f2e;
+    color: #e6e9ef;
+  }
+  button {
+    background: #2563eb;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { background: #3a4055; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #232838; }
+  th { color: #8b95a7; font-weight: 500; }
+  .up { color: #4ade80; }
+  .down { color: #f87171; }
+  .status { font-size: 13px; color: #8b95a7; margin-top: 8px; }
+  .error { color: #f87171; }
+  code { background: #1a1f2e; padding: 2px 6px; border-radius: 4px; }
+  .patternCard {
+    border: 1px solid #232838;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    background: #171c29;
+  }
+  .patternCard.hit { border-left: 3px solid #4ade80; }
+  .patternCard.miss { border-left: 3px solid #3a4055; opacity: 0.7; }
+  .confBar {
+    height: 6px;
+    border-radius: 3px;
+    background: #232838;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .confFill { height: 100%; background: linear-gradient(90deg,#4ade80,#22c55e); }
+  .stageChip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #1e3a2f;
+    color: #4ade80;
+  }
+</style>
+</head>
+<body>
+
+  <h1>NSE Trading System — Data Layer Test</h1>
+  <p class="subtitle">Day 1 of 7 · Verifies data-layer.js can fetch and cache real NSE quotes via Yahoo Finance</p>
+
+  <div class="panel">
+    <input type="text" id="symbolInput" placeholder="e.g. RELIANCE, TCS, HAL" value="RELIANCE" />
+    <button id="fetchBtn">Get Quote</button>
+    <button id="fetchHistBtn">Get 6mo Daily History</button>
+    <button id="analyzeBtn">Analyze Patterns (Day 2)</button>
+    <button id="clearCacheBtn">Clear Cache</button>
+    <div class="status" id="status">Ready.</div>
+  </div>
+
+  <div class="panel" id="analysisPanel" style="display:none;">
+    <h3>Pattern &amp; Setup Analysis</h3>
+    <div id="analysisOutput"></div>
+  </div>
+
+  <div class="panel" id="quotePanel" style="display:none;">
+    <h3>Quote</h3>
+    <div id="quoteOutput"></div>
+  </div>
+
+  <div class="panel" id="historyPanel" style="display:none;">
+    <h3>Last 10 Daily Candles</h3>
+    <table id="historyTable">
+      <thead>
+        <tr><th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h3>Cache Info</h3>
+    <div id="cacheInfo" class="status">—</div>
+  </div>
+
+  <div class="panel">
+    <h3>Screener (Day 3)</h3>
+    <button id="runScreenerBtn">Run Screener on Starter Universe (~140 stocks)</button>
+    <div class="status" id="screenerStatus">Not run yet. This takes a few minutes due to rate-limit spacing.</div>
+    <div id="screenerOutput"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Risk Calculator (Day 4)</h3>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+      <input type="number" id="riskCapital" placeholder="Capital (₹)" value="500000" style="width:130px;" />
+      <input type="number" id="riskPct" placeholder="Risk % per trade" value="1" style="width:120px;" />
+      <input type="number" id="riskEntry" placeholder="Entry price" style="width:100px;" />
+      <input type="number" id="riskStop" placeholder="Stop price" style="width:100px;" />
+      <input type="number" id="riskTarget" placeholder="Target (optional)" style="width:130px;" />
+    </div>
+    <button id="calcRiskBtn">Calculate Position Size</button>
+    <div id="riskOutput" class="status" style="margin-top:10px;"></div>
+  </div>
+
+  <script src="js/data-layer.js"></script>
+  <script src="js/pattern-engine.js"></script>
+  <script src="js/nse-universe.js"></script>
+  <script src="js/screener.js"></script>
+  <script src="js/risk-engine.js"></script>
+  <script src="js/shariah-filter.js"></script>
+  <script src="js/ipo-tracker.js"></script>
+  <script src="js/backtester.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const symbolInput = document.getElementById('symbolInput');
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    function refreshCacheInfo() {
+      const info = NSEData.getCacheInfo();
+      document.getElementById('cacheInfo').textContent =
+        `${info.count} cached entries · ${(info.totalBytes / 1024).toFixed(1)} KB`;
+    }
+
+    document.getElementById('fetchBtn').addEventListener('click', async () => {
+      const symbol = symbolInput.value.trim();
+      if (!symbol) return setStatus('Enter a symbol first.', true);
+      setStatus(`Fetching quote for ${symbol}...`);
+      try {
+        const q = await NSEData.getQuote(symbol);
+        const panel = document.getElementById('quotePanel');
+        const dirClass = q.change >= 0 ? 'up' : 'down';
+        document.getElementById('quoteOutput').innerHTML = `
+          <p><strong>${q.symbol}</strong> ${q.fromCache ? '(from cache)' : '(live)'}</p>
+          <p>Price: ₹${q.price} <span class="${dirClass}">(${q.change >= 0 ? '+' : ''}${q.change}, ${q.changePct}%)</span></p>
+          <p>Day range: ₹${q.dayLow} – ₹${q.dayHigh} · 52wk: ₹${q.fiftyTwoWeekLow} – ₹${q.fiftyTwoWeekHigh}</p>
+          <p>Volume: ${q.volume?.toLocaleString('en-IN')}</p>
+        `;
+        panel.style.display = 'block';
+        setStatus(`Done. Last updated ${new Date(q.fetchedAt).toLocaleTimeString()}`);
+        refreshCacheInfo();
+      } catch (err) {
+        setStatus(`Failed: ${err.message}`, true);
+      }
+    });
+
+    document.getElementById('fetchHistBtn').addEventListener('click', async () => {
+      const symbol = symbolInput.value.trim();
+      if (!symbol) return setStatus('Enter a symbol first.', true);
+      setStatus(`Fetching 6mo history for ${symbol}...`);
+      try {
+        const hist = await NSEData.getHistory(symbol, '6mo', '1d');
+        const tbody = document.querySelector('#historyTable tbody');
+        tbody.innerHTML = '';
+        hist.candles.slice(-10).reverse().forEach((c) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${new Date(c.timestamp).toLocaleDateString('en-IN')}</td>
+            <td>${c.open}</td><td>${c.high}</td><td>${c.low}</td><td>${c.close}</td>
+            <td>${c.volume.toLocaleString('en-IN')}</td>`;
+          tbody.appendChild(row);
+        });
+        document.getElementById('historyPanel').style.display = 'block';
+        setStatus(`Done (${hist.candles.length} candles). ${hist.fromCache ? 'From cache.' : 'Live fetch.'}`);
+        refreshCacheInfo();
+      } catch (err) {
+        setStatus(`Failed: ${err.message}`, true);
+      }
+    });
+
+    const PATTERN_LABELS = {
+      breakout: 'Breakout (consolidation + volume)',
+      vcp: 'VCP (Volatility Contraction)',
+      cupHandle: 'Cup & Handle',
+      flag: 'Flag / Pennant',
+      doubleBottom: 'Double Bottom',
+      gap: 'Gap (up/down)',
+    };
+
+    document.getElementById('analyzeBtn').addEventListener('click', async () => {
+      const symbol = symbolInput.value.trim();
+      if (!symbol) return setStatus('Enter a symbol first.', true);
+      setStatus(`Fetching history & running pattern analysis for ${symbol}...`);
+      try {
+        const hist = await NSEData.getHistory(symbol, '1y', '1d');
+        const report = PatternEngine.analyze(hist.candles, hist.symbol);
+
+        const panel = document.getElementById('analysisPanel');
+        const out = document.getElementById('analysisOutput');
+
+        const stageHtml = report.stage.detected
+          ? `<span class="stageChip">${report.stage.label}</span>
+             <span class="status" style="display:inline">&nbsp; MA slope: ${report.stage.maSlopePct}% ·
+             Off 52wk high: ${report.stage.pctOffHigh}% · Off 52wk low: ${report.stage.pctOffLow}%</span>`
+          : `<span class="status">Stage: ${report.stage.reason}</span>`;
+
+        const cardsHtml = Object.entries(report.patterns)
+          .map(([key, result]) => {
+            const label = PATTERN_LABELS[key] || key;
+            const cls = result.detected ? 'hit' : 'miss';
+            const detailBits = Object.entries(result)
+              .filter(([k]) => !['detected', 'confidence', 'reason'].includes(k))
+              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+              .join(' · ');
+            return `
+              <div class="patternCard ${cls}">
+                <strong>${label}</strong> — ${result.detected ? 'DETECTED' : 'not present'}
+                <div class="confBar"><div class="confFill" style="width:${result.confidence}%"></div></div>
+                <div class="status" style="margin-top:4px;">${result.confidence}% confidence
+                  ${result.reason ? '· ' + result.reason : ''}${detailBits ? ' · ' + detailBits : ''}</div>
+              </div>`;
+          })
+          .join('');
+
+        out.innerHTML = `
+          <p>${stageHtml}</p>
+          <p><strong>Composite setup score: ${report.compositeScore}/100</strong></p>
+          <p class="status">${report.summary}</p>
+          <hr style="border-color:#232838; margin:12px 0;" />
+          ${cardsHtml}
+        `;
+        panel.style.display = 'block';
+        setStatus(`Analysis complete for ${report.symbol} as of ${new Date(report.asOf).toLocaleDateString('en-IN')}.`);
+        refreshCacheInfo();
+      } catch (err) {
+        setStatus(`Failed: ${err.message}`, true);
+      }
+    });
+
+    document.getElementById('runScreenerBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('runScreenerBtn');
+      const statusEl2 = document.getElementById('screenerStatus');
+      btn.disabled = true;
+      try {
+        const report = await Screener.runScreener(NSE_UNIVERSE, {}, (current, total, symbol) => {
+          statusEl2.textContent = `Screening ${current}/${total}: ${symbol}...`;
+        });
+
+        const sectorRows = report.sectorRanking
+          .map((s) => `<tr><td>${s.sector}</td><td>${s.avgRelativeStrength}%</td><td>${s.avgCompositeScore}</td><td>${s.stockCount}</td></tr>`)
+          .join('');
+
+        const topRows = report.results
+          .slice(0, 20)
+          .map(
+            (r) => `<tr>
+              <td>${r.symbol}</td><td>${r.sector}</td><td>${r.stage}</td>
+              <td>${r.compositeScore}</td><td>${r.rs.rsBlended ?? '—'}%</td>
+              <td>${r.screenerScore}</td><td>${r.detectedPatterns.join(', ') || '—'}</td>
+            </tr>`
+          )
+          .join('');
+
+        document.getElementById('screenerOutput').innerHTML = `
+          <p class="status">Screened ${report.succeeded}/${report.universeSize} stocks (${report.failed} failed) vs Nifty 50.</p>
+          <h4 style="margin-bottom:4px;">Sector Rotation Ranking</h4>
+          <table><thead><tr><th>Sector</th><th>Avg RS</th><th>Avg Setup Score</th><th>Stocks</th></tr></thead>
+          <tbody>${sectorRows}</tbody></table>
+          <h4 style="margin-bottom:4px; margin-top:16px;">Top 20 Ranked Stocks</h4>
+          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Stage</th><th>Setup Score</th><th>RS</th><th>Screener Score</th><th>Patterns</th></tr></thead>
+          <tbody>${topRows}</tbody></table>
+        `;
+        statusEl2.textContent = `Done. Screened ${report.succeeded} stocks at ${new Date(report.asOf).toLocaleTimeString()}.`;
+        refreshCacheInfo();
+      } catch (err) {
+        statusEl2.textContent = `Failed: ${err.message}`;
+        statusEl2.classList.add('error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('calcRiskBtn').addEventListener('click', () => {
+      const out = document.getElementById('riskOutput');
+      try {
+        const capital = parseFloat(document.getElementById('riskCapital').value);
+        const riskPct = parseFloat(document.getElementById('riskPct').value);
+        const entry = parseFloat(document.getElementById('riskEntry').value);
+        const stop = parseFloat(document.getElementById('riskStop').value);
+        const targetRaw = document.getElementById('riskTarget').value;
+        const target = targetRaw ? parseFloat(targetRaw) : null;
+
+        const sizing = RiskEngine.calcPositionSize({ capital, riskPct, entry, stop });
+        const rr = target ? RiskEngine.calcRewardRisk({ entry, stop, target }) : null;
+
+        out.classList.remove('error');
+        out.innerHTML = `
+          <strong>${sizing.shares} shares</strong> · Position value ₹${sizing.positionValue.toLocaleString('en-IN')}
+          (${sizing.positionPctOfCapital}% of capital)<br/>
+          Risk if stopped out: ₹${sizing.actualRiskAmount.toLocaleString('en-IN')}<br/>
+          ${rr ? `Reward:Risk = ${rr.ratio}:1 — ${rr.verdict}<br/>` : ''}
+          ${sizing.warnings.map((w) => `⚠️ ${w}`).join('<br/>')}
+        `;
+      } catch (err) {
+        out.classList.add('error');
+        out.textContent = `Error: ${err.message}`;
+      }
+    });
+
+    document.getElementById('clearCacheBtn').addEventListener('click', () => {
+      const n = NSEData.clearCache();
+      setStatus(`Cleared ${n} cached entries.`);
+      refreshCacheInfo();
+    });
+
+    refreshCacheInfo();
+  </script>
+</body>
+</html>
