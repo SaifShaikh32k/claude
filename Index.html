@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NSE Trading System — Dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0b0e14;
+    color: #e6e9ef;
+    margin: 0;
+    padding: 0 0 40px 0;
+  }
+  header {
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid #1c212f;
+  }
+  header h1 { font-size: 20px; color: #7dd3fc; margin: 0 0 2px; }
+  header p { color: #8b95a7; margin: 0; font-size: 13px; }
+
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 12px 24px 0;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #1c212f;
+  }
+  nav button {
+    background: none;
+    border: none;
+    color: #8b95a7;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: #7dd3fc; border-bottom-color: #7dd3fc; }
+  nav button:hover { color: #e6e9ef; }
+
+  main { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+  .tabPanel { display: none; }
+  .tabPanel.active { display: block; }
+
+  .panel {
+    background: #131722;
+    border: 1px solid #232838;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  h3 { margin-top: 0; font-size: 14px; color: #cbd3e1; }
+  h4 { font-size: 13px; color: #8b95a7; margin: 16px 0 6px; }
+
+  input, button, select {
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #2a3040;
+    background: #1a1f2e;
+    color: #e6e9ef;
+  }
+  input { width: 100%; margin-bottom: 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row input { width: auto; flex: 1; min-width: 110px; }
+
+  button.primary {
+    background: #2563eb;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    width: 100%;
+  }
+  button.primary:hover { background: #1d4ed8; }
+  button.primary:disabled { background: #3a4055; cursor: not-allowed; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #232838; }
+  th { color: #8b95a7; font-weight: 500; }
+
+  .status { font-size: 13px; color: #8b95a7; margin-top: 8px; }
+  .error { color: #f87171; }
+  .up { color: #4ade80; }
+  .down { color: #f87171; }
+
+  .patternCard {
+    border: 1px solid #232838;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    background: #171c29;
+  }
+  .patternCard.hit { border-left: 3px solid #4ade80; }
+  .patternCard.miss { border-left: 3px solid #3a4055; opacity: 0.7; }
+  .confBar { height: 6px; border-radius: 3px; background: #232838; margin-top: 6px; overflow: hidden; }
+  .confFill { height: 100%; background: linear-gradient(90deg,#4ade80,#22c55e); }
+  .stageChip {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600; background: #1e3a2f; color: #4ade80;
+  }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 700;
+  }
+  .badge.pass { background: #1e3a2f; color: #4ade80; }
+  .badge.fail { background: #3a1e1e; color: #f87171; }
+  .badge.warn { background: #3a3520; color: #facc15; }
+  .disclaimer { font-size: 12px; color: #6b7280; margin-top: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NSE Trading System</h1>
+  <p>Day 7 of 7 — pattern engine, screener, risk sizing, Shariah &amp; IPO screening, and backtesting in one place.</p>
+</header>
+
+<nav>
+  <button class="tabBtn active" data-tab="analyze">Analyze</button>
+  <button class="tabBtn" data-tab="screener">Screener</button>
+  <button class="tabBtn" data-tab="risk">Risk</button>
+  <button class="tabBtn" data-tab="shariah">Shariah &amp; IPO</button>
+  <button class="tabBtn" data-tab="backtest">Backtest</button>
+</nav>
+
+<main>
+
+  <!-- ============ ANALYZE TAB ============ -->
+  <section class="tabPanel active" id="tab-analyze">
+    <div class="panel">
+      <h3>Quote &amp; Pattern Analysis</h3>
+      <input type="text" id="an_symbol" placeholder="e.g. RELIANCE, TCS, HAL" value="RELIANCE" />
+      <div class="row">
+        <button class="primary" id="an_quoteBtn" style="flex:1;">Get Quote</button>
+        <button class="primary" id="an_analyzeBtn" style="flex:1;">Analyze Patterns</button>
+      </div>
+      <div class="status" id="an_status">Ready.</div>
+    </div>
+    <div class="panel" id="an_quotePanel" style="display:none;"></div>
+    <div class="panel" id="an_analysisPanel" style="display:none;"></div>
+  </section>
+
+  <!-- ============ SCREENER TAB ============ -->
+  <section class="tabPanel" id="tab-screener">
+    <div class="panel">
+      <h3>Screener — Starter Universe (~140 stocks, 15 sectors)</h3>
+      <button class="primary" id="sc_runBtn">Run Screener</button>
+      <div class="status" id="sc_status">Not run yet. Takes a few minutes (rate-limit spacing is intentional).</div>
+    </div>
+    <div class="panel" id="sc_output" style="display:none;"></div>
+  </section>
+
+  <!-- ============ RISK TAB ============ -->
+  <section class="tabPanel" id="tab-risk">
+    <div class="panel">
+      <h3>Position Size &amp; Risk Calculator</h3>
+      <div class="row">
+        <input type="number" id="rk_capital" placeholder="Capital (₹)" value="500000" />
+        <input type="number" id="rk_riskPct" placeholder="Risk % per trade" value="1" />
+      </div>
+      <div class="row">
+        <input type="number" id="rk_entry" placeholder="Entry price" />
+        <input type="number" id="rk_stop" placeholder="Stop price" />
+        <input type="number" id="rk_target" placeholder="Target (optional)" />
+      </div>
+      <button class="primary" id="rk_calcBtn">Calculate</button>
+      <div id="rk_output" class="status" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="panel">
+      <h3>ATR-Based Stop Suggestion</h3>
+      <input type="text" id="rk_atrSymbol" placeholder="Symbol, e.g. RELIANCE" value="RELIANCE" />
+      <button class="primary" id="rk_atrBtn">Suggest Stop from ATR</button>
+      <div id="rk_atrOutput" class="status" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- ============ SHARIAH & IPO TAB ============ -->
+  <section class="tabPanel" id="tab-shariah">
+    <div class="panel">
+      <h3>Shariah Compliance Screen</h3>
+      <input type="text" id="sh_sector" placeholder="Sector / business description" value="IT Services" />
+      <div class="row">
+        <input type="number" id="sh_marketCap" placeholder="Market Cap (₹)" />
+        <input type="number" id="sh_debt" placeholder="Total Debt (₹)" />
+      </div>
+      <div class="row">
+        <input type="number" id="sh_cash" placeholder="Cash + interest securities (₹)" />
+        <input type="number" id="sh_interestIncome" placeholder="Interest income (₹)" />
+        <input type="number" id="sh_revenue" placeholder="Total revenue (₹)" />
+      </div>
+      <button class="primary" id="sh_screenBtn">Run Shariah Screen</button>
+      <div id="sh_output" style="margin-top:10px;"></div>
+      <p class="disclaimer">Mechanical ratio screen only (33% debt/market cap, 33% liquid assets/market cap, 5% interest income/revenue) — not a fatwa. Enter figures manually from screener.in or company filings; free real-time fundamentals APIs aren't reliably available.</p>
+    </div>
+
+    <div class="panel">
+      <h3>IPO Allotment &amp; Listing Gain Estimator</h3>
+      <div class="row">
+        <input type="number" id="ipo_lotsAvailable" placeholder="Retail lots available" />
+        <input type="number" id="ipo_applicants" placeholder="Total retail applicants" />
+      </div>
+      <div class="row">
+        <input type="number" id="ipo_issuePrice" placeholder="Issue price (₹)" />
+        <input type="number" id="ipo_lotSize" placeholder="Lot size (shares)" />
+        <input type="number" id="ipo_gmp" placeholder="GMP (₹/share)" />
+      </div>
+      <button class="primary" id="ipo_calcBtn">Evaluate IPO</button>
+      <div id="ipo_output" style="margin-top:10px;"></div>
+      <p class="disclaimer">Allotment probability is an approximation of SEBI's proportional lottery, not a guarantee. GMP is an unregulated grey-market indicator — enter it manually after checking a tracking site; it is not available via any free stable API.</p>
+    </div>
+  </section>
+
+  <!-- ============ BACKTEST TAB ============ -->
+  <section class="tabPanel" id="tab-backtest">
+    <div class="panel">
+      <h3>Backtest All Patterns (walk-forward, no lookahead)</h3>
+      <input type="text" id="bt_symbol" placeholder="Symbol, e.g. RELIANCE" value="RELIANCE" />
+      <button class="primary" id="bt_runBtn">Run Backtest (2yr history)</button>
+      <div class="status" id="bt_status">Not run yet.</div>
+    </div>
+    <div class="panel" id="bt_output" style="display:none;"></div>
+  </section>
+
+</main>
+
+<script src="js/data-layer.js"></script>
+<script src="js/pattern-engine.js"></script>
+<script src="js/nse-universe.js"></script>
+<script src="js/screener.js"></script>
+<script src="js/risk-engine.js"></script>
+<script src="js/shariah-filter.js"></script>
+<script src="js/ipo-tracker.js"></script>
+<script src="js/backtester.js"></script>
+
+<script>
+  // ---------------- TAB SWITCHING ----------------
+  document.querySelectorAll('.tabBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabBtn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.tabPanel').forEach((p) => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  // ---------------- ANALYZE TAB ----------------
+  const PATTERN_LABELS = {
+    breakout: 'Breakout (consolidation + volume)',
+    vcp: 'VCP (Volatility Contraction)',
+    cupHandle: 'Cup & Handle',
+    flag: 'Flag / Pennant',
+    doubleBottom: 'Double Bottom',
+    gap: 'Gap (up/down)',
+  };
+
+  function renderPatternCards(patterns) {
+    return Object.entries(patterns)
+      .map(([key, result]) => {
+        const label = PATTERN_LABELS[key] || key;
+        const cls = result.detected ? 'hit' : 'miss';
+        const detailBits = Object.entries(result)
+          .filter(([k]) => !['detected', 'confidence', 'reason'].includes(k))
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join(' · ');
+        return `<div class="patternCard ${cls}">
+          <strong>${label}</strong> — ${result.detected ? 'DETECTED' : 'not present'}
+          <div class="confBar"><div class="confFill" style="width:${result.confidence}%"></div></div>
+          <div class="status" style="margin-top:4px;">${result.confidence}% confidence
+            ${result.reason ? '· ' + result.reason : ''}${detailBits ? ' · ' + detailBits : ''}</div>
+        </div>`;
+      })
+      .join('');
+  }
+
+  document.getElementById('an_quoteBtn').addEventListener('click', async () => {
+    const symbol = document.getElementById('an_symbol').value.trim();
+    const statusEl = document.getElementById('an_status');
+    if (!symbol) return (statusEl.textContent = 'Enter a symbol first.');
+    statusEl.textContent = `Fetching quote for ${symbol}...`;
+    try {
+      const q = await NSEData.getQuote(symbol);
+      const dirClass = q.change >= 0 ? 'up' : 'down';
+      const panel = document.getElementById('an_quotePanel');
+      panel.innerHTML = `
+        <h3>${q.symbol} ${q.fromCache ? '(cached)' : '(live)'}</h3>
+        <p>Price: ₹${q.price} <span class="${dirClass}">(${q.change >= 0 ? '+' : ''}${q.change}, ${q.changePct}%)</span></p>
+        <p>Day range: ₹${q.dayLow} – ₹${q.dayHigh} · 52wk: ₹${q.fiftyTwoWeekLow} – ₹${q.fiftyTwoWeekHigh}</p>
+        <p>Volume: ${q.volume?.toLocaleString('en-IN')}</p>`;
+      panel.style.display = 'block';
+      statusEl.textContent = `Updated ${new Date(q.fetchedAt).toLocaleTimeString()}`;
+    } catch (err) {
+      statusEl.textContent = `Failed: ${err.message}`;
+      statusEl.classList.add('error');
+    }
+  });
+
+  document.getElementById('an_analyzeBtn').addEventListener('click', async () => {
+    const symbol = document.getElementById('an_symbol').value.trim();
+    const statusEl = document.getElementById('an_status');
+    if (!symbol) return (statusEl.textContent = 'Enter a symbol first.');
+    statusEl.textContent = `Analyzing ${symbol}...`;
+    try {
+      const hist = await NSEData.getHistory(symbol, '1y', '1d');
+      const report = PatternEngine.analyze(hist.candles, hist.symbol);
+      const panel = document.getElementById('an_analysisPanel');
+      const stageHtml = report.stage.detected
+        ? `<span class="stageChip">${report.stage.label}</span>
+           <span class="status" style="display:inline;">&nbsp; MA slope: ${report.stage.maSlopePct}% · Off 52wk high: ${report.stage.pctOffHigh}%</span>`
+        : `<span class="status">Stage: ${report.stage.reason}</span>`;
+      panel.innerHTML = `
+        <h3>Pattern Analysis — ${report.symbol}</h3>
+        <p>${stageHtml}</p>
+        <p><strong>Composite setup score: ${report.compositeScore}/100</strong></p>
+        <p class="status">${report.summary}</p>
+        <hr style="border-color:#232838; margin:12px 0;" />
+        ${renderPatternCards(report.patterns)}`;
+      panel.style.display = 'block';
+      statusEl.textContent = `Analysis complete as of ${new Date(report.asOf).toLocaleDateString('en-IN')}.`;
+    } catch (err) {
+      statusEl.textContent = `Failed: ${err.message}`;
+      statusEl.classList.add('error');
+    }
+  });
+
+  // ---------------- SCREENER TAB ----------------
+  document.getElementById('sc_runBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('sc_runBtn');
+    const statusEl = document.getElementById('sc_status');
+    btn.disabled = true;
+    try {
+      const report = await Screener.runScreener(NSE_UNIVERSE, {}, (current, total, symbol) => {
+        statusEl.textContent = `Screening ${current}/${total}: ${symbol}...`;
+      });
+      const sectorRows = report.sectorRanking
+        .map((s) => `<tr><td>${s.sector}</td><td>${s.avgRelativeStrength}%</td><td>${s.avgCompositeScore}</td><td>${s.stockCount}</td></tr>`)
+        .join('');
+      const topRows = report.results
+        .slice(0, 20)
+        .map((r) => `<tr><td>${r.symbol}</td><td>${r.sector}</td><td>${r.stage}</td><td>${r.compositeScore}</td><td>${r.rs.rsBlended ?? '—'}%</td><td>${r.screenerScore}</td><td>${r.detectedPatterns.join(', ') || '—'}</td></tr>`)
+        .join('');
+      const out = document.getElementById('sc_output');
+      out.innerHTML = `
+        <p class="status">Screened ${report.succeeded}/${report.universeSize} stocks (${report.failed} failed) vs Nifty 50.</p>
+        <h4>Sector Rotation Ranking</h4>
+        <table><thead><tr><th>Sector</th><th>Avg RS</th><th>Avg Setup Score</th><th>Stocks</th></tr></thead><tbody>${sectorRows}</tbody></table>
+        <h4>Top 20 Ranked Stocks</h4>
+        <table><thead><tr><th>Symbol</th><th>Sector</th><th>Stage</th><th>Setup</th><th>RS</th><th>Score</th><th>Patterns</th></tr></thead><tbody>${topRows}</tbody></table>`;
+      out.style.display = 'block';
+      statusEl.textContent = `Done at ${new Date(report.asOf).toLocaleTimeString()}.`;
+    } catch (err) {
+      statusEl.textContent = `Failed: ${err.message}`;
+      statusEl.classList.add('error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---------------- RISK TAB ----------------
+  document.getElementById('rk_calcBtn').addEventListener('click', () => {
+    const out = document.getElementById('rk_output');
+    try {
+      const capital = parseFloat(document.getElementById('rk_capital').value);
+      const riskPct = parseFloat(document.getElementById('rk_riskPct').value);
+      const entry = parseFloat(document.getElementById('rk_entry').value);
+      const stop = parseFloat(document.getElementById('rk_stop').value);
+      const targetRaw = document.getElementById('rk_target').value;
+      const target = targetRaw ? parseFloat(targetRaw) : null;
+
+      const sizing = RiskEngine.calcPositionSize({ capital, riskPct, entry, stop });
+      const rr = target ? RiskEngine.calcRewardRisk({ entry, stop, target }) : null;
+
+      out.classList.remove('error');
+      out.innerHTML = `
+        <strong>${sizing.shares} shares</strong> · Position value ₹${sizing.positionValue.toLocaleString('en-IN')} (${sizing.positionPctOfCapital}% of capital)<br/>
+        Risk if stopped out: ₹${sizing.actualRiskAmount.toLocaleString('en-IN')}<br/>
+        ${rr ? `Reward:Risk = ${rr.ratio}:1 — ${rr.verdict}<br/>` : ''}
+        ${sizing.warnings.map((w) => `⚠️ ${w}`).join('<br/>')}`;
+    } catch (err) {
+      out.classList.add('error');
+      out.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  document.getElementById('rk_atrBtn').addEventListener('click', async () => {
+    const symbol = document.getElementById('rk_atrSymbol').value.trim();
+    const out = document.getElementById('rk_atrOutput');
+    if (!symbol) return (out.textContent = 'Enter a symbol first.');
+    out.textContent = 'Fetching data...';
+    try {
+      const hist = await NSEData.getHistory(symbol, '6mo', '1d');
+      const atrStop = RiskEngine.calcATRStop(hist.candles, { multiplier: 2.5 });
+      out.classList.remove('error');
+      out.innerHTML = `Entry (last close): ₹${atrStop.entry} · ATR(14): ₹${atrStop.atr}<br/>
+        Suggested stop (2.5×ATR): <strong>₹${atrStop.suggestedStop}</strong> (${atrStop.stopDistancePct}% away)`;
+    } catch (err) {
+      out.classList.add('error');
+      out.textContent = `Failed: ${err.message}`;
+    }
+  });
+
+  // ---------------- SHARIAH & IPO TAB ----------------
+  document.getElementById('sh_screenBtn').addEventListener('click', () => {
+    const out = document.getElementById('sh_output');
+    try {
+      const financials = {
+        sector: document.getElementById('sh_sector').value.trim(),
+        marketCap: parseFloat(document.getElementById('sh_marketCap').value),
+        totalDebt: parseFloat(document.getElementById('sh_debt').value) || 0,
+        cashAndInterestBearingSecurities: parseFloat(document.getElementById('sh_cash').value) || 0,
+        interestIncome: parseFloat(document.getElementById('sh_interestIncome').value) || 0,
+        totalRevenue: parseFloat(document.getElementById('sh_revenue').value) || 0,
+      };
+      const result = ShariahFilter.screenStock(financials);
+      const badgeClass = result.compliant === true ? 'pass' : result.compliant === false ? 'fail' : 'warn';
+      const badgeText = result.compliant === true ? 'COMPLIANT' : result.compliant === false ? 'NOT COMPLIANT' : 'PROVISIONAL';
+      const ratioRows = result.ratioChecks
+        .map((c) => `<tr><td>${c.name}</td><td>${c.value ?? '—'}%</td><td>≤ ${c.threshold}%</td><td>${c.pass === true ? '✅' : c.pass === false ? '❌' : '—'}</td></tr>`)
+        .join('');
+      out.innerHTML = `
+        <span class="badge ${badgeClass}">${badgeText}</span>
+        <p class="status" style="margin-top:8px;">${result.verdict}</p>
+        <table><thead><tr><th>Ratio</th><th>Value</th><th>Limit</th><th>Pass</th></tr></thead><tbody>${ratioRows}</tbody></table>`;
+    } catch (err) {
+      out.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+    }
+  });
+
+  document.getElementById('ipo_calcBtn').addEventListener('click', () => {
+    const out = document.getElementById('ipo_output');
+    try {
+      const result = IPOTracker.evaluateIPO({
+        totalLotsAvailable: parseFloat(document.getElementById('ipo_lotsAvailable').value),
+        totalApplicants: parseFloat(document.getElementById('ipo_applicants').value),
+        issuePrice: parseFloat(document.getElementById('ipo_issuePrice').value),
+        lotSize: parseFloat(document.getElementById('ipo_lotSize').value),
+        gmp: parseFloat(document.getElementById('ipo_gmp').value),
+      });
+      out.innerHTML = `
+        <p><strong>${result.allotment.odds}</strong> (${result.allotment.probabilityAtLeastOneLotPct}% probability, ${result.allotment.oversubscriptionRatio}x oversubscribed)</p>
+        <p>Estimated listing price: ₹${result.listing.estimatedListingPrice} (${result.listing.gainPctPerShare >= 0 ? '+' : ''}${result.listing.gainPctPerShare}%)</p>
+        <p>Expected gain per lot if allotted: ₹${result.listing.gainAmountPerLot}</p>
+        <p><strong>Probability-weighted expected gain: ₹${result.probabilityWeightedExpectedGain}</strong></p>`;
+    } catch (err) {
+      out.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+    }
+  });
+
+  // ---------------- BACKTEST TAB ----------------
+  document.getElementById('bt_runBtn').addEventListener('click', async () => {
+    const symbol = document.getElementById('bt_symbol').value.trim();
+    const statusEl = document.getElementById('bt_status');
+    const btn = document.getElementById('bt_runBtn');
+    if (!symbol) return (statusEl.textContent = 'Enter a symbol first.');
+    btn.disabled = true;
+    statusEl.textContent = `Fetching 2yr history for ${symbol}...`;
+    try {
+      const hist = await NSEData.getHistory(symbol, '2y', '1d');
+      statusEl.textContent = `Running walk-forward backtest on ${hist.candles.length} candles (this may take a few seconds)...`;
+      await new Promise((r) => setTimeout(r, 50));
+      const report = Backtester.backtestAll(hist.candles);
+
+      const rows = Object.values(report.byPattern)
+        .filter((r) => !r.error)
+        .map((r) => {
+          const h10 = r.byHorizon[10];
+          return `<tr>
+            <td>${PATTERN_LABELS[r.pattern] || r.pattern}</td>
+            <td>${r.totalSignals}</td>
+            <td>${h10 && h10.winRatePct !== null ? h10.winRatePct + '%' : '—'}</td>
+            <td>${h10 && h10.avgReturnPct !== null ? h10.avgReturnPct + '%' : '—'}</td>
+            <td>${h10 && h10.expectancyPct !== null ? h10.expectancyPct + '%' : '—'}</td>
+            <td>${r.warning ? '⚠️ small sample' : ''}</td>
+          </tr>`;
+        })
+        .join('');
+
+      const out = document.getElementById('bt_output');
+      out.innerHTML = `
+        <h3>Backtest Results — ${hist.symbol} (10-day forward horizon)</h3>
+        <p class="status">Ranked by expectancy: ${report.rankedByExpectancy.map((p) => PATTERN_LABELS[p] || p).join(' > ') || 'no patterns had signals'}</p>
+        <table><thead><tr><th>Pattern</th><th>Signals</th><th>Win Rate</th><th>Avg Return</th><th>Expectancy</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+        <p class="disclaimer">No-lookahead walk-forward test: entry is the NEXT bar's open after a signal, never the signal bar's own close. Small sample sizes (fewer than 20 signals) are indicative only — do not treat as statistically reliable.</p>`;
+      out.style.display = 'block';
+      statusEl.textContent = `Done.`;
+    } catch (err) {
+      statusEl.textContent = `Failed: ${err.message}`;
+      statusEl.classList.add('error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
